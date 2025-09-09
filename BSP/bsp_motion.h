@@ -9,7 +9,7 @@
 
 // 轮子一整圈的位移，单位为mm
 // The displacement of a wheel in one complete turn, Unit: mm 
-#define MECANUM_MINI_CIRCLE_MM       (204.203f)
+#define MECANUM_MINI_CIRCLE_MM       (439.6f)
 // 底盘电机间距之和的一半
 // Half of the sum of the chassis motor spacing
 #define MECANUM_MINI_APB             (164.555f)

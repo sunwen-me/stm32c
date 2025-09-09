@@ -24,7 +24,7 @@
 #define SERVO_4_HIGH()  HAL_GPIO_WritePin(S4_GPIO_Port, S4_Pin, GPIO_PIN_SET)
 #define SERVO_4_LOW()   HAL_GPIO_WritePin(S4_GPIO_Port, S4_Pin, GPIO_PIN_RESET)
 
-
+extern uint8_t g_pwm_angle[MAX_PWM_SERVO];
 
 void PwmServo_Init(void);
 void PwmServo_Set_Angle(uint8_t index, uint8_t angle);

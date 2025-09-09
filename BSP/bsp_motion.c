@@ -1,7 +1,11 @@
 #include "bsp_motion.h"
+
+#include <math.h>
+
 #include "bsp.h"
-
-
+#include "bsp_pid.h"
+#include "bsp_pwmServo.h"
+#include "cmsis_os2.h"
 
 int g_Encoder_All_Now[MAX_MOTOR] = {0};
 int g_Encoder_All_Last[MAX_MOTOR] = {0};
@@ -11,8 +15,9 @@ int g_Encoder_All_Offset[MAX_MOTOR] = {0};
 uint8_t g_start_ctrl = 0;
 
 car_data_t car_data;
+car_data_t car_data_ta;
 motor_data_t motor_data;
-
+extern osMutexId_t reportMutexHandle;
 
 // 控制小车运动，Motor_X=[-3600, 3600]，超过范围则无效。
 // Control car movement, Motor_X=[-3600, 3600], beyond the range is invalid. 
@@ -65,22 +70,69 @@ void Motion_Set_Speed(int16_t speed_m1, int16_t speed_m2, int16_t speed_m3, int1
 
 // 从编码器读取当前各轮子速度，单位mm/s
 // Read the current speed of each wheel from the encoder in mm/s
+// void Motion_Get_Speed(car_data_t* car)
+// {
+//     Motion_Get_Encoder();
+//
+//     float circle_mm = Motion_Get_Circle_MM();
+//
+//     float speed_m1 = (g_Encoder_All_Offset[0]) * 100 * circle_mm / (float)ENCODER_CIRCLE;
+//     float speed_m2 = (g_Encoder_All_Offset[1]) * 100 * circle_mm / (float)ENCODER_CIRCLE;
+//     float speed_m3 = (g_Encoder_All_Offset[2]) * 100 * circle_mm / (float)ENCODER_CIRCLE;
+//     float speed_m4 = (g_Encoder_All_Offset[3]) * 100 * circle_mm / (float)ENCODER_CIRCLE;
+//     float robot_APB = Motion_Get_APB();
+//
+//     car->Vx = (speed_m1 + speed_m2 + speed_m3 + speed_m4) / 4;
+//     car->Vy = -(speed_m1 - speed_m2 - speed_m3 + speed_m4) / 4;
+//     car->Vz = -(speed_m1 + speed_m2 - speed_m3 - speed_m4) / 4.0f / robot_APB * 1000;
+//
+//     if (g_start_ctrl)
+//     {
+//         motor_data.speed_mm_s[0] = speed_m1;
+//         motor_data.speed_mm_s[1] = speed_m2;
+//         motor_data.speed_mm_s[2] = speed_m3;
+//         motor_data.speed_mm_s[3] = speed_m4;
+//         PID_Calc_Motor(&motor_data);
+//     }
+// }
+// 从编码器读取当前各轮子速度，单位mm/s
 void Motion_Get_Speed(car_data_t* car)
 {
     Motion_Get_Encoder();
 
     float circle_mm = Motion_Get_Circle_MM();
 
+    // 计算每个电机速度 (mm/s)
     float speed_m1 = (g_Encoder_All_Offset[0]) * 100 * circle_mm / (float)ENCODER_CIRCLE;
     float speed_m2 = (g_Encoder_All_Offset[1]) * 100 * circle_mm / (float)ENCODER_CIRCLE;
     float speed_m3 = (g_Encoder_All_Offset[2]) * 100 * circle_mm / (float)ENCODER_CIRCLE;
     float speed_m4 = (g_Encoder_All_Offset[3]) * 100 * circle_mm / (float)ENCODER_CIRCLE;
-    float robot_APB = Motion_Get_APB();
 
-    car->Vx = (speed_m1 + speed_m2 + speed_m3 + speed_m4) / 4;
-    car->Vy = -(speed_m1 - speed_m2 - speed_m3 + speed_m4) / 4;
-    car->Vz = -(speed_m1 + speed_m2 - speed_m3 - speed_m4) / 4.0f / robot_APB * 1000;
+    // -------------------
+    // 阿克曼底盘速度解算
+    // -------------------
+    // 取后轮作为驱动轮
+    if (osMutexAcquire(reportMutexHandle, osWaitForever) == osOK)
+    {
+        // 平均四个驱动轮的速度
+        car_data.Vx = (speed_m1 + speed_m2 + speed_m3 + speed_m4) / 4.0f;
+        car_data.Vy = 0.0f;
 
+        // 舵机转角 -> 弧度
+        float steer_deg = g_pwm_angle[0];
+        float delta = (steer_deg - 90.0f) * (30.0f * M_PI / 180.0f) / 90.0f;
+
+        float L = 300.0f; // 轴距 mm
+        car_data.Vz = (car_data.Vx / 1000.0f) / (L / 1000.0f) * tanf(delta);
+
+        osMutexRelease(reportMutexHandle);
+    }
+
+
+
+    // -------------------
+    // PID 控制
+    // -------------------
     if (g_start_ctrl)
     {
         motor_data.speed_mm_s[0] = speed_m1;
@@ -117,34 +169,82 @@ void Motion_Get_Encoder(void)
     }
 }
 
-// Control car movement  控制小车运动
+// Control car movement  控制小车运动 四轮差速模式
+// void Motion_Ctrl(int16_t V_x, int16_t V_y, int16_t V_z)
+// {
+//     float robot_APB = Motion_Get_APB();
+//     float speed_lr = -V_y;
+//     float speed_fb = V_x;
+//     float speed_spin = -V_z / 1000.0f * robot_APB;
+//     if (V_x == 0 && V_y == 0 && V_z == 0)
+//     {
+//         Motion_Stop(STOP_BRAKE);
+//         return;
+//     }
+//
+//     int speed_L1_setup = speed_fb + speed_lr + speed_spin;
+//     int speed_L2_setup = speed_fb - speed_lr + speed_spin;
+//     int speed_R1_setup = speed_fb - speed_lr - speed_spin;
+//     int speed_R2_setup = speed_fb + speed_lr - speed_spin;
+//
+//     if (speed_L1_setup > 1000) speed_L1_setup = 1000;
+//     if (speed_L1_setup < -1000) speed_L1_setup = -1000;
+//     if (speed_L2_setup > 1000) speed_L2_setup = 1000;
+//     if (speed_L2_setup < -1000) speed_L2_setup = -1000;
+//     if (speed_R1_setup > 1000) speed_R1_setup = 1000;
+//     if (speed_R1_setup < -1000) speed_R1_setup = -1000;
+//     if (speed_R2_setup > 1000) speed_R2_setup = 1000;
+//     if (speed_R2_setup < -1000) speed_R2_setup = -1000;
+//     Motion_Set_Speed(speed_L1_setup, speed_L2_setup, speed_R1_setup, speed_R2_setup);
+// }
+// Control car movement  控制小车运动 阿克曼转向模式
+
 void Motion_Ctrl(int16_t V_x, int16_t V_y, int16_t V_z)
 {
-    float robot_APB = Motion_Get_APB();
-    float speed_lr = -V_y;
-    float speed_fb = V_x;
-    float speed_spin = -V_z / 1000.0f * robot_APB;
-    if (V_x == 0 && V_y == 0 && V_z == 0)
+    const float WHEEL_BASE = 0.30f;   // 轴距 (米)，需要根据实际小车修改
+    const float MAX_STEER = 30.0f;    // 最大转角 (度)
+    const int   MAX_SPEED = 1000;     // 最大电机速度指令
+    const int   SERVO_INDEX = 0;      // 舵机 PWM 通道
+    const float SERVO_CENTER = 90.0f; // 舵机直行中点 (可调)
+
+    float v = V_x / 1000.0f;   // mm/s -> m/s
+    float w = V_z / 1000.0f;   // mrad/s -> rad/s
+
+    if (V_x == 0 && V_z == 0)
     {
         Motion_Stop(STOP_BRAKE);
         return;
     }
 
-    int speed_L1_setup = speed_fb + speed_lr + speed_spin;
-    int speed_L2_setup = speed_fb - speed_lr + speed_spin;
-    int speed_R1_setup = speed_fb - speed_lr - speed_spin;
-    int speed_R2_setup = speed_fb + speed_lr - speed_spin;
+    // 计算前轮转角 δ (弧度)
+    float steer_angle = 0.0f;
+    if (fabs(v) > 1e-5f) {
+        steer_angle = atanf(WHEEL_BASE * w / v);
+    }
 
-    if (speed_L1_setup > 1000) speed_L1_setup = 1000;
-    if (speed_L1_setup < -1000) speed_L1_setup = -1000;
-    if (speed_L2_setup > 1000) speed_L2_setup = 1000;
-    if (speed_L2_setup < -1000) speed_L2_setup = -1000;
-    if (speed_R1_setup > 1000) speed_R1_setup = 1000;
-    if (speed_R1_setup < -1000) speed_R1_setup = -1000;
-    if (speed_R2_setup > 1000) speed_R2_setup = 1000;
-    if (speed_R2_setup < -1000) speed_R2_setup = -1000;
-    Motion_Set_Speed(speed_L1_setup, speed_L2_setup, speed_R1_setup, speed_R2_setup);
+    // 限制转角 [-MAX_STEER, MAX_STEER]
+    float max_rad = MAX_STEER * (float)M_PI / 180.0f;
+    if (steer_angle > max_rad) steer_angle = max_rad;
+    if (steer_angle < -max_rad) steer_angle = -max_rad;
+
+    // 转换为舵机角度 (0~180°)
+    float servo_angle = SERVO_CENTER + (steer_angle * 180.0f / (float)M_PI) * (90.0f / MAX_STEER);
+
+    // 限制在 [0,180]
+    if (servo_angle < 0)   servo_angle = 0;
+    if (servo_angle > 180) servo_angle = 180;
+
+    // 设置舵机角度
+    PwmServo_Set_Angle(SERVO_INDEX, (uint8_t)servo_angle);
+
+    // 设置驱动电机速度 (后驱，左右相同)
+    int speed_cmd = (int)(v * 1000.0f);
+    if (speed_cmd > MAX_SPEED)  speed_cmd = MAX_SPEED;
+    if (speed_cmd < -MAX_SPEED) speed_cmd = -MAX_SPEED;
+
+    Motion_Set_Speed(speed_cmd, speed_cmd, speed_cmd, speed_cmd);
 }
+
 
 
 // 运动控制句柄，每10ms调用一次，主要处理速度相关的数据

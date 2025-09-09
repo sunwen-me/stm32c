@@ -23,9 +23,9 @@
 
 typedef enum {
     MOTOR_ID_M1 = 0,
-    MOTOR_ID_M2,
-    MOTOR_ID_M3,
-    MOTOR_ID_M4,
+    MOTOR_ID_M2= 1,
+    MOTOR_ID_M3=2,
+    MOTOR_ID_M4=3,
     MAX_MOTOR
 } Motor_ID;
 

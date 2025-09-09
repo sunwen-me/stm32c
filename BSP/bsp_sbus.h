@@ -15,6 +15,12 @@
 #define SBUS_SIGNAL_FAILSAFE    0x03
 #define SBUS_ALL_CHANNELS       0x00
 
+typedef enum {
+ CTRL_MODE_RC,   // 遥控优先
+ CTRL_MODE_PC    // 上位机优先
+} ctrl_mode_t;
+
+extern ctrl_mode_t g_ctrl_mode;
 
 void SBUS_Reveive(uint8_t data);
 void SBUS_Handle(void);

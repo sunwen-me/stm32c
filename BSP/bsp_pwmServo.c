@@ -5,7 +5,7 @@ uint16_t g_pwm_pulse = 0;
 
 uint8_t g_pwm_angle[MAX_PWM_SERVO] = {90, 90, 90, 90};
 uint16_t g_angle_num[MAX_PWM_SERVO] = {149, 149, 149, 149};
-
+uint8_t angle_new;
 // 角度转化为脉冲数, angle= [0, 180]
 // The Angle is converted to the number of pulses, angle= [0, 180]
 static uint16_t PwmServo_Angle_To_Pulse(uint8_t angle)
@@ -66,6 +66,7 @@ void PwmServo_Init(void)
 // Set the PWM servo Angle, index=0~MAX_PWM_SERVO, Angle to 0-180
 void PwmServo_Set_Angle(uint8_t index, uint8_t angle)
 {
+	angle_new = angle;
 	if (index >= MAX_PWM_SERVO)
 		return;
 	if (angle > 180)
