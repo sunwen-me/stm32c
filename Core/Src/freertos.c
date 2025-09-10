@@ -249,9 +249,7 @@ void ReportHandleTask(void *argument)
     buf[8] = (vz_i >> 8) & 0xFF;
     buf[9] = buf[1] ^ buf[2] ^ buf[3] ^ buf[4] ^ buf[5] ^ buf[6] ^ buf[7] ^ buf[8]; // 简单 CRC
     buf[10] = 0x55;     // EOF
-      //USART1_Send_ArrayU8(buf, 11);
-
-    osDelay(20); // 20ms 上报一次
+    USART1_Send_ArrayU8(buf, 11);
     osDelay(20);
   }
   /* USER CODE END ReportHandleTask */

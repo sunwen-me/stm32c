@@ -2,6 +2,7 @@
 
 #include "bsp_motion.h"
 #include "bsp_pid.h"
+#include "cmsis_os2.h"
 
 // LED显示当前运行状态，每10毫秒调用一次，LED灯每200毫秒闪烁一次。
 // The LED displays the current operating status, which is invoked every 10 milliseconds, and the LED blinks every 200 milliseconds.  
@@ -34,5 +35,6 @@ void Bsp_Loop(void)
 {
 
 	SBUS_Handle();
+	osDelay(10);
 
 }

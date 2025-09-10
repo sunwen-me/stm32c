@@ -50,13 +50,13 @@ static int SBUS_Parse_Data(void)
     if (sbus_data[23] & (1 << 2))
     {
         failsafe_status = SBUS_SIGNAL_LOST;
-        printf("SBUS_SIGNAL_LOST\n");
+        //printf("SBUS_SIGNAL_LOST\n");
         // lost contact errors  遥控器失联错误
     }
     else if (sbus_data[23] & (1 << 3))
     {
         failsafe_status = SBUS_SIGNAL_FAILSAFE;
-        printf("SBUS_SIGNAL_FAILSAFE\n");
+        //printf("SBUS_SIGNAL_FAILSAFE\n");
         // data loss error  数据丢失错误
     }
     return failsafe_status;
@@ -166,10 +166,10 @@ void SBUS_Handle(void)
             Motion_Ctrl(vx, vy, vz);
         }
 
-        printf("%d,%d,%d,%d,%d,%d,%d,%d\r\n",
-               g_sbus_channels[0], g_sbus_channels[1], g_sbus_channels[2],
-			   g_sbus_channels[3], g_sbus_channels[4],g_sbus_channels[5],
-			   g_sbus_channels[6], g_sbus_channels[7]);
+      //   printf("%d,%d,%d,%d,%d,%d,%d,%d\r\n",
+      //          g_sbus_channels[0], g_sbus_channels[1], g_sbus_channels[2],
+			   // g_sbus_channels[3], g_sbus_channels[4],g_sbus_channels[5],
+			   // g_sbus_channels[6], g_sbus_channels[7]);
         #endif
     }
 }

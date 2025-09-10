@@ -59,7 +59,7 @@ void USART1_Init(void)
     __HAL_UART_ENABLE_IT(&huart1 ,UART_IT_IDLE);
     HAL_UART_Receive_IT(&huart2, (uint8_t *)&RxTemp_2, 1);
 
-    printf("start serial\n");
+    //printf("start serial\n");
 }
 
 // The serial port sends one byte  串口发送一个字节
@@ -86,11 +86,11 @@ void USART1_Send_ArrayU8(uint8_t *BufferPtr, uint16_t Length)
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
 
-    if (huart == &huart1)
-    {
-        osMessageQueuePut(uart1RxQueueHandle, &RxTemp, 0, 0);
-        HAL_UART_Receive_IT(&huart1, (uint8_t *)&RxTemp, 1);
-    }
+    // if (huart == &huart1)
+    // {
+    //     osMessageQueuePut(uart1RxQueueHandle, &RxTemp, 0, 0);
+    //     HAL_UART_Receive_IT(&huart1, (uint8_t *)&RxTemp, 1);
+    // }
     if (huart == &huart2)
     {
         SBUS_Reveive(RxTemp_2);
