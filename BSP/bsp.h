@@ -20,6 +20,12 @@
 
 
 /* DEFINE */
+#define LED_Pin GPIO_PIN_13
+#define LED_GPIO_Port GPIOC
+#define BEEP_Pin GPIO_PIN_5
+#define BEEP_GPIO_Port GPIOC
+#define KEY1_Pin GPIO_PIN_2
+#define KEY1_GPIO_Port GPIOD
 #define LED_ON()         HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, SET)
 #define LED_OFF()        HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, RESET)
 #define LED_TOGGLE()     HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin)

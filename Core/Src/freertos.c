@@ -29,6 +29,7 @@
 
 #include "bsp.h"
 #include "bsp_motion.h"
+#include "bsp_uart_servo.h"
 #include "queue.h"
 /* USER CODE END Includes */
 
@@ -40,6 +41,7 @@ extern car_data_t car_data;
 extern car_data_t car_data_ta;
 UART_RX_TypeDef uart_rx_data_t[UART_BUFFER_QUEUE];
 extern uint8_t uart_buff_ctrl;
+extern uint16_t Servo_Ctrl;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -84,6 +86,13 @@ const osThreadAttr_t receiveTask_attributes = {
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityLow,
 };
+/* Definitions for ServoTask */
+osThreadId_t ServoTaskHandle;
+const osThreadAttr_t ServoTask_attributes = {
+  .name = "ServoTask",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityLow,
+};
 /* Definitions for uart1RxQueue */
 osMessageQueueId_t uart1RxQueueHandle;
 const osMessageQueueAttr_t uart1RxQueue_attributes = {
@@ -99,6 +108,16 @@ osMutexId_t revMutexHandle;
 const osMutexAttr_t revMutex_attributes = {
   .name = "revMutex"
 };
+/* Definitions for servoMutex */
+osMutexId_t servoMutexHandle;
+const osMutexAttr_t servoMutex_attributes = {
+  .name = "servoMutex"
+};
+/* Definitions for servocMutex */
+osMutexId_t servocMutexHandle;
+const osMutexAttr_t servocMutex_attributes = {
+  .name = "servocMutex"
+};
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
@@ -109,6 +128,7 @@ void StartDefaultTask(void *argument);
 void MotionHandleTask(void *argument);
 void ReportHandleTask(void *argument);
 void ReceiveHandleTask(void *argument);
+void ServoHandleTask(void *argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
@@ -127,6 +147,12 @@ void MX_FREERTOS_Init(void) {
 
   /* creation of revMutex */
   revMutexHandle = osMutexNew(&revMutex_attributes);
+
+  /* creation of servoMutex */
+  servoMutexHandle = osMutexNew(&servoMutex_attributes);
+
+  /* creation of servocMutex */
+  servocMutexHandle = osMutexNew(&servocMutex_attributes);
 
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
@@ -160,6 +186,9 @@ void MX_FREERTOS_Init(void) {
 
   /* creation of receiveTask */
   receiveTaskHandle = osThreadNew(ReceiveHandleTask, NULL, &receiveTask_attributes);
+
+  /* creation of ServoTask */
+  ServoTaskHandle = osThreadNew(ServoHandleTask, NULL, &ServoTask_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -226,7 +255,7 @@ void ReportHandleTask(void *argument)
   for(;;)
   {
     car_data_t temp;
-    if (osMutexAcquire(reportMutexHandle, osWaitForever) == osOK)
+    if (osMutexAcquire(reportMutexHandle, 10) == osOK)
     {
       temp = car_data; // 先拷贝
       osMutexRelease(reportMutexHandle); // 立刻释放
@@ -339,7 +368,10 @@ for (;;)
                             vx = data[0] | (data[1] << 8);
                            vy = data[2] | (data[3] << 8);
                             vz = data[4] | (data[5] << 8);
+
                             if (g_ctrl_mode == CTRL_MODE_PC) {
+
+
                                 Motion_Ctrl(vx, vy, vz); // 上位机控制才执行
                             }
                         }
@@ -350,6 +382,34 @@ for (;;)
         }
     }
   /* USER CODE END ReceiveHandleTask */
+}
+
+/* USER CODE BEGIN Header_ServoHandleTask */
+/**
+* @brief Function implementing the ServoTask thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_ServoHandleTask */
+void ServoHandleTask(void *argument)
+{
+  /* USER CODE BEGIN ServoHandleTask */
+  /* Infinite loop */
+    uint8_t servo_id = 0x01;
+  for(;;)
+  {
+      if (osMutexAcquire(servocMutexHandle, 1) == osOK)
+      {
+          UartServo_Ctrl(servo_id, Servo_Ctrl, 1000);
+          osMutexRelease(servocMutexHandle);
+      }
+      osDelay(10);
+      UartServo_Get_Angle(servo_id);
+      osDelay(10);
+      UartServo_Rx_Parse();
+      osDelay(10);
+  }
+  /* USER CODE END ServoHandleTask */
 }
 
 /* Private application code --------------------------------------------------*/

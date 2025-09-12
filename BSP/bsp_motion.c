@@ -6,6 +6,11 @@
 #include "bsp_pid.h"
 #include "bsp_pwmServo.h"
 #include "cmsis_os2.h"
+#define SERVO_MAX 4095       // 舵机最大值
+#define SERVO_CENTER 2000    // 中心值对应车头朝前
+#define SERVO_RANGE 360.0f   // 舵机全量程对应角度
+#define MAX_STEER 30.0f      // 最大前轮转角 (度)
+#define WHEEL_BASE 0.3f      // 轴距 m
 
 int g_Encoder_All_Now[MAX_MOTOR] = {0};
 int g_Encoder_All_Last[MAX_MOTOR] = {0};
@@ -18,7 +23,10 @@ car_data_t car_data;
 car_data_t car_data_ta;
 motor_data_t motor_data;
 extern osMutexId_t reportMutexHandle;
-
+extern osMutexId_t servoMutexHandle;
+extern osMutexId_t servocMutexHandle;
+extern uint16_t servo_value;
+extern uint16_t Servo_Ctrl;
 // 控制小车运动，Motor_X=[-3600, 3600]，超过范围则无效。
 // Control car movement, Motor_X=[-3600, 3600], beyond the range is invalid. 
 void Motion_Set_Pwm(int16_t Motor_1, int16_t Motor_2, int16_t Motor_3, int16_t Motor_4)
@@ -112,14 +120,20 @@ void Motion_Get_Speed(car_data_t* car)
     // 阿克曼底盘速度解算
     // -------------------
     // 取后轮作为驱动轮
-    if (osMutexAcquire(reportMutexHandle, osWaitForever) == osOK)
+    float steer_deg = servo_value;
+    if (osMutexAcquire(servoMutexHandle, 10) == osOK)
+    {
+        steer_deg = servo_value;
+        osMutexRelease(servoMutexHandle);
+    }
+
+    if (osMutexAcquire(reportMutexHandle, 10) == osOK)
     {
         // 平均四个驱动轮的速度
         car_data.Vx = (speed_m1 + speed_m2 + speed_m3 + speed_m4) / 4.0f;
         car_data.Vy = 0.0f;
 
         // 舵机转角 -> 弧度
-        float steer_deg = g_pwm_angle[0];
         float delta = (steer_deg - 90.0f) * (30.0f * M_PI / 180.0f) / 90.0f;
 
         float L = 300.0f; // 轴距 mm
@@ -127,12 +141,6 @@ void Motion_Get_Speed(car_data_t* car)
 
         osMutexRelease(reportMutexHandle);
     }
-
-
-
-    // -------------------
-    // PID 控制
-    // -------------------
     if (g_start_ctrl)
     {
         motor_data.speed_mm_s[0] = speed_m1;
@@ -201,11 +209,7 @@ void Motion_Get_Encoder(void)
 
 void Motion_Ctrl(int16_t V_x, int16_t V_y, int16_t V_z)
 {
-    const float WHEEL_BASE = 0.30f;   // 轴距 (米)，需要根据实际小车修改
-    const float MAX_STEER = 30.0f;    // 最大转角 (度)
     const int   MAX_SPEED = 1000;     // 最大电机速度指令
-    const int   SERVO_INDEX = 0;      // 舵机 PWM 通道
-    const float SERVO_CENTER = 90.0f; // 舵机直行中点 (可调)
 
     float v = V_x / 1000.0f;   // mm/s -> m/s
     float w = V_z / 1000.0f;   // mrad/s -> rad/s
@@ -222,20 +226,20 @@ void Motion_Ctrl(int16_t V_x, int16_t V_y, int16_t V_z)
         steer_angle = atanf(WHEEL_BASE * w / v);
     }
 
-    // 限制转角 [-MAX_STEER, MAX_STEER]
-    float max_rad = MAX_STEER * (float)M_PI / 180.0f;
+    float max_rad = MAX_STEER * M_PI / 180.0f;
     if (steer_angle > max_rad) steer_angle = max_rad;
     if (steer_angle < -max_rad) steer_angle = -max_rad;
 
-    // 转换为舵机角度 (0~180°)
-    float servo_angle = SERVO_CENTER + (steer_angle * 180.0f / (float)M_PI) * (90.0f / MAX_STEER);
+    // 转换为舵机数值 (0~4095)
+        float servo_offset = (steer_angle / max_rad) * (SERVO_MAX / SERVO_RANGE * MAX_STEER);
+        uint16_t servo_val = SERVO_CENTER + (int16_t)servo_offset;
 
-    // 限制在 [0,180]
-    if (servo_angle < 0)   servo_angle = 0;
-    if (servo_angle > 180) servo_angle = 180;
+    if (osMutexAcquire(servocMutexHandle, 10) == osOK)
+        {
+            Servo_Ctrl = servo_val;
+            osMutexRelease(servocMutexHandle);
+    }
 
-    // 设置舵机角度
-    PwmServo_Set_Angle(SERVO_INDEX, (uint8_t)servo_angle);
 
     // 设置驱动电机速度 (后驱，左右相同)
     int speed_cmd = (int)(v * 1000.0f);

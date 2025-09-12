@@ -10,10 +10,12 @@
 #include "FreeRTOS.h"
 #include "cmsis_os2.h"
 #include "queue.h"
+#include "bsp_uart_servo.h"
 #define ENABLE_UART_DMA    1
 
 uint8_t RxTemp = 0;
 uint8_t RxTemp_2 = 0;
+uint8_t RxTemp_3 = 0;
 extern UART_RX_TypeDef uart_rx_data_t[UART_BUFFER_QUEUE];
 uint8_t uart_buff_ctrl=0;
 extern osMessageQueueId_t uart1RxQueueHandle;
@@ -58,8 +60,12 @@ void USART1_Init(void)
 {
     __HAL_UART_ENABLE_IT(&huart1 ,UART_IT_IDLE);
     HAL_UART_Receive_IT(&huart2, (uint8_t *)&RxTemp_2, 1);
+}
+void USART3_Init(void)
+{
 
-    //printf("start serial\n");
+    HAL_UART_Receive_IT(&huart3, (uint8_t *)&RxTemp_3, 1);
+
 }
 
 // The serial port sends one byte  串口发送一个字节
@@ -67,7 +73,22 @@ void USART1_Send_U8(uint8_t ch)
 {
     HAL_UART_Transmit(&huart1, (uint8_t *)&ch, 1, 0xFFFF);
 }
-
+void USART3_Send_U8(uint8_t ch)
+{
+    HAL_UART_Transmit(&huart3, (uint8_t *)&ch, 1, 0xFFFF);
+}
+void USART3_Send_ArrayU8(uint8_t *BufferPtr, uint16_t Length)
+{
+// #if ENABLE_UART_DMA
+     //HAL_UART_Transmit_DMA(&huart3, BufferPtr, Length);
+// #else
+    while (Length--)
+    {
+        USART3_Send_U8(*BufferPtr);
+        BufferPtr++;
+    }
+// #endif
+}
 // The serial port sends a string of data  串口发送一串数据
 void USART1_Send_ArrayU8(uint8_t *BufferPtr, uint16_t Length)
 {
@@ -96,6 +117,11 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
         SBUS_Reveive(RxTemp_2);
         // printf("a:%d\n", RxTemp_2);
         HAL_UART_Receive_IT(&huart2, (uint8_t *)&RxTemp_2, 1);
+    }
+    if (huart == &huart3)
+    {
+        UartServo_Revice(RxTemp_3);
+        HAL_UART_Receive_IT(&huart3, (uint8_t *)&RxTemp_3, 1);
     }
 }
 

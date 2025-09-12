@@ -95,7 +95,7 @@ void SBUS_Reveive(uint8_t data)
 // SBUS receives and processes data handle  SBUS接收处理数据句柄
 int16_t MapChannel2ToVz(uint16_t ch2_value)
 {
-    const int16_t vz_max = 500;    // 最大转角速度
+    const int16_t vz_max = 1000;    // 最大转角速度
     const int16_t deadzone = 50;   // 中立区阈值
     const int16_t center = 992;    // 中立值
 

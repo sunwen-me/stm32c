@@ -14,8 +14,11 @@
 
 
 void USART1_Init(void);
+void USART3_Init(void);
 void USART1_Send_U8(uint8_t ch);
+void USART3_Send_U8(uint8_t ch);
 void USART1_Send_ArrayU8(uint8_t *BufferPtr, uint16_t Length);
+void USART3_Send_ArrayU8(uint8_t *BufferPtr, uint16_t Length);
 void USART1_DMAHandler(void);
 typedef struct {
  uint8_t buffer[UART_BUFFER_SIZE];
