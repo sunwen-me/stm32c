@@ -6,12 +6,17 @@
  */
 
 #include "bsp_uart.h"
+
+#include <string.h>
 #include "bsp.h"
 #include "FreeRTOS.h"
 #include "cmsis_os2.h"
 #include "queue.h"
 #include "bsp_uart_servo.h"
 #define ENABLE_UART_DMA    1
+#define USART_REC_LEN 25
+extern uint8_t USART2_RX_BUF[];
+extern DMA_HandleTypeDef hdma_usart2_rx;
 
 uint8_t RxTemp = 0;
 uint8_t RxTemp_2 = 0;
@@ -19,6 +24,7 @@ uint8_t RxTemp_3 = 0;
 extern UART_RX_TypeDef uart_rx_data_t[UART_BUFFER_QUEUE];
 uint8_t uart_buff_ctrl=0;
 extern osMessageQueueId_t uart1RxQueueHandle;
+extern osMessageQueueId_t sbusQueueHandle;
 extern DMA_HandleTypeDef hdma_usart1_rx;
 
 void USART1_DMAHandler(void){
@@ -59,7 +65,7 @@ void USART1_DMAHandler(void){
 void USART1_Init(void)
 {
     __HAL_UART_ENABLE_IT(&huart1 ,UART_IT_IDLE);
-    HAL_UART_Receive_IT(&huart2, (uint8_t *)&RxTemp_2, 1);
+   // HAL_UART_Receive_IT(&huart2, (uint8_t *)&RxTemp_2, 1);
 }
 void USART3_Init(void)
 {
@@ -112,18 +118,45 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
     //     osMessageQueuePut(uart1RxQueueHandle, &RxTemp, 0, 0);
     //     HAL_UART_Receive_IT(&huart1, (uint8_t *)&RxTemp, 1);
     // }
-    if (huart == &huart2)
-    {
-        SBUS_Reveive(RxTemp_2);
-        // printf("a:%d\n", RxTemp_2);
-        HAL_UART_Receive_IT(&huart2, (uint8_t *)&RxTemp_2, 1);
-    }
+    // if (huart == &huart2)
+    // {
+    //     SBUS_Reveive(RxTemp_2);
+    //     // printf("a:%d\n", RxTemp_2);
+    //     HAL_UART_Receive_IT(&huart2, (uint8_t *)&RxTemp_2, 1);
+    // }
     if (huart == &huart3)
     {
         UartServo_Revice(RxTemp_3);
         HAL_UART_Receive_IT(&huart3, (uint8_t *)&RxTemp_3, 1);
     }
 }
+void HAL_UART_IdleCpltCallback(UART_HandleTypeDef *huart)
+{
+    uint32_t tmp_flag ;
+    uint8_t len;
+    uint8_t data[25];
+
+    if (huart->Instance == USART2)
+    {
+        tmp_flag  = __HAL_UART_GET_FLAG(huart, UART_FLAG_IDLE);
+        if( tmp_flag  != RESET)
+        {
+            __HAL_UART_CLEAR_IDLEFLAG(huart);//清除标志位
+            HAL_UART_DMAStop(huart); //停止DMA接收
+
+            len = USART_REC_LEN - __HAL_DMA_GET_COUNTER(&hdma_usart2_rx);// 获取DMA中传输的数据个数
+
+            // 以下为用户数据处理，将数据拷贝出去
+            if(len == 25)
+            {
+                memcpy(data,USART2_RX_BUF,len);
+                xQueueSendFromISR(sbusQueueHandle, data, 0);
+            }
+            HAL_UART_Receive_DMA(huart,USART2_RX_BUF,USART_REC_LEN);   //打开DMA接收，数据存入rx_buffer数组中。
+        }
+    }
+}
+
 
 
 

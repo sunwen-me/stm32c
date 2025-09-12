@@ -2,7 +2,11 @@
 #include "bsp_sbus.h"
 #include "bsp.h"
 #include "bsp_motion.h"
+#include "cmsis_os2.h"
+#include "FreeRTOS.h"
+#include "projdefs.h"
 #include "string.h"
+#include "queue.h"
 
 
 #define SBUS_RECV_MAX    25
@@ -17,7 +21,7 @@ uint8_t sbus_new_cmd = 0;
 // data-caching mechanism  数据缓存
 uint8_t inBuffer[SBUS_RECV_MAX] = {0};
 uint8_t failsafe_status = SBUS_SIGNAL_FAILSAFE;
-
+extern osMessageQueueId_t sbusQueueHandle;
 uint8_t sbus_data[SBUS_RECV_MAX] = {0};
 int16_t g_sbus_channels[18] = {0};
 #define RC_MODE_THRESHOLD 1000   // 阈值，根据你开关的三段数值调整
@@ -174,3 +178,58 @@ void SBUS_Handle(void)
     }
 }
 
+void SBUS_HandleDMA(void)
+{
+    uint8_t sbus_data[25];
+    if (xQueueReceive(sbusQueueHandle, sbus_data, 0) == pdPASS)
+    {
+        g_sbus_channels[0]  = ((sbus_data[1] | sbus_data[2] << 8) & 0x07FF);
+        g_sbus_channels[1]  = ((sbus_data[2] >> 3 | sbus_data[3] << 5) & 0x07FF);
+        g_sbus_channels[2]  = ((sbus_data[3] >> 6 | sbus_data[4] << 2 | sbus_data[5] << 10) & 0x07FF);
+        g_sbus_channels[3]  = ((sbus_data[5] >> 1 | sbus_data[6] << 7) & 0x07FF);
+        g_sbus_channels[4]  = ((sbus_data[6] >> 4 | sbus_data[7] << 4) & 0x07FF);
+
+// #ifdef ALL_CHANNELS
+//         g_sbus_channels[8]  = ((sbus_data[12] | sbus_data[13] << 8) & 0x07FF);
+//         g_sbus_channels[9]  = ((sbus_data[13] >> 3 | sbus_data[14] << 5) & 0x07FF);
+//         g_sbus_channels[10] = ((sbus_data[14] >> 6 | sbus_data[15] << 2 | sbus_data[16] << 10) & 0x07FF);
+//         g_sbus_channels[11] = ((sbus_data[16] >> 1 | sbus_data[17] << 7) & 0x07FF);
+//         g_sbus_channels[12] = ((sbus_data[17] >> 4 | sbus_data[18] << 4) & 0x07FF);
+//         g_sbus_channels[13] = ((sbus_data[18] >> 7 | sbus_data[19] << 1 | sbus_data[20] << 9) & 0x07FF);
+//         g_sbus_channels[14] = ((sbus_data[20] >> 2 | sbus_data[21] << 6) & 0x07FF);
+//         g_sbus_channels[15] = ((sbus_data[21] >> 5 | sbus_data[22] << 3) & 0x07FF);
+//
+// #endif
+        failsafe_status = SBUS_SIGNAL_OK;
+        if (sbus_data[23] & (1 << 2))
+        {
+            failsafe_status = SBUS_SIGNAL_LOST;
+            //printf("SBUS_SIGNAL_LOST\n");
+            // lost contact errors  遥控器失联错误
+        }
+        else if (sbus_data[23] & (1 << 3))
+        {
+            failsafe_status = SBUS_SIGNAL_FAILSAFE;
+            //printf("SBUS_SIGNAL_FAILSAFE\n");
+            // data loss error  数据丢失错误
+        }
+        //if (failsafe_status) return;
+        if (g_sbus_channels[4] < RC_MODE_THRESHOLD) {
+            g_ctrl_mode = CTRL_MODE_PC;   // 遥控器控制
+        } else {
+            g_ctrl_mode = CTRL_MODE_RC;   // 上位机控制
+        }
+        if (g_ctrl_mode == CTRL_MODE_RC)
+        {
+            int16_t vx = MapChannel3ToVx(g_sbus_channels[1]); // 前后速度
+            int16_t vz = MapChannel2ToVz(g_sbus_channels[3]); // 左右转角
+            int16_t vy = 0; // 横向速度，如果底盘支持可映射
+
+            Motion_Ctrl(vx, vy, vz);
+        }
+
+
+    }
+
+
+}

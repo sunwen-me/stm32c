@@ -42,7 +42,7 @@ uint8_t servo_state = 0;
 void Bsp_Loop(void)
 {
 
-	SBUS_Handle();
+	 SBUS_HandleDMA();
 	// UartServo_Get_Angle(0x01);
 	// osDelay(12);
 	// UartServo_Ctrl(0x01,4000, 1000);

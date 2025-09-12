@@ -9,6 +9,7 @@
 #define BSP_UART_H_
 
 #include "stdint.h"
+#include "main.h"
 #define UART_BUFFER_QUEUE (5)
 #define UART_BUFFER_SIZE (256)
 
@@ -19,6 +20,7 @@ void USART1_Send_U8(uint8_t ch);
 void USART3_Send_U8(uint8_t ch);
 void USART1_Send_ArrayU8(uint8_t *BufferPtr, uint16_t Length);
 void USART3_Send_ArrayU8(uint8_t *BufferPtr, uint16_t Length);
+void HAL_UART_IdleCpltCallback(UART_HandleTypeDef *huart);
 void USART1_DMAHandler(void);
 typedef struct {
  uint8_t buffer[UART_BUFFER_SIZE];

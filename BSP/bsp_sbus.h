@@ -24,6 +24,7 @@ extern ctrl_mode_t g_ctrl_mode;
 
 void SBUS_Reveive(uint8_t data);
 void SBUS_Handle(void);
+void SBUS_HandleDMA(void);
 
 
 #endif /* BSP_SBUS_H_ */

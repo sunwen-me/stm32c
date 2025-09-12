@@ -98,6 +98,11 @@ osMessageQueueId_t uart1RxQueueHandle;
 const osMessageQueueAttr_t uart1RxQueue_attributes = {
   .name = "uart1RxQueue"
 };
+/* Definitions for sbusQueue */
+osMessageQueueId_t sbusQueueHandle;
+const osMessageQueueAttr_t sbusQueue_attributes = {
+  .name = "sbusQueue"
+};
 /* Definitions for reportMutex */
 osMutexId_t reportMutexHandle;
 const osMutexAttr_t reportMutex_attributes = {
@@ -169,6 +174,9 @@ void MX_FREERTOS_Init(void) {
   /* Create the queue(s) */
   /* creation of uart1RxQueue */
   uart1RxQueueHandle = osMessageQueueNew (5, sizeof(void*), &uart1RxQueue_attributes);
+
+  /* creation of sbusQueue */
+  sbusQueueHandle = osMessageQueueNew (25, 25, &sbusQueue_attributes);
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
